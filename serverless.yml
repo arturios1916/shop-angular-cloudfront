@@ -1,4 +1,4 @@
-service: s3-cf-front
+service: s3-front-cf
 frameworkVersion: '3'
 
 provider:
@@ -12,9 +12,9 @@ plugins:
 
 custom:
   client:
-    bucketName: s3-cf-front
+    bucketName: s3-front-cf
     indexDocument: index.html
-    manageResources: true
+    manageResources: false
     distributionFolder: dist/app
   s3LocalPath: ${self:custom.client.distributionFolder}/
   s3BucketName: ${self:custom.client.bucketName}
@@ -31,7 +31,15 @@ resources:
         WebsiteConfiguration:
           IndexDocument: index.html
           ErrorDocument: index.html
+    ##
     ## Specifying the policies to make sure all files inside the Bucket are avaialble to CloudFront
+    ##
+    OriginAccessIdentity:
+      Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+      Properties:
+        CloudFrontOriginAccessIdentityConfig:
+          Comment: Access identity between CloudFront and S3 bucket
+
     WebAppS3BucketPolicy:
       Type: AWS::S3::BucketPolicy
       Properties:
@@ -39,25 +47,30 @@ resources:
           Ref: WebAppS3Bucket
         PolicyDocument:
           Statement:
-            - Sid: PublicReadGetObject
+            - Sid: 'AllowCloudFrontAccessIdentity'
               Effect: Allow
-              Principal: "*"
-              Action:
-              - s3:GetObject
-              Resource: arn:aws:s3:::${self:custom.s3BucketName}/*,
+              Principal:
+                AWS:
+                  Fn::Join:
+                    - " "
+                    - - "arn:aws:iam::cloudfront:user/CloudFront Origin Access Identity"
+                      - !Ref OriginAccessIdentity
+              Action: s3:GetObject
+              Resource: arn:aws:s3:::${self:custom.s3BucketName}/*
+
+    ##
     ## Specifying the CloudFront Distribution to server your Web Application
+    ##
     WebAppCloudFrontDistribution:
       Type: AWS::CloudFront::Distribution
       Properties:
         DistributionConfig:
           Origins:
-            - DomainName: "${self:custom.s3BucketName}.s3.amazonaws.com"
+            - DomainName: !GetAtt WebAppS3Bucket.RegionalDomainName
               ## An identifier for the origin which must be unique within the distribution
-              Id: WebApp
-              CustomOriginConfig:
-                HTTPPort: 80
-                HTTPSPort: 443
-                OriginProtocolPolicy: https-only
+              Id: myS3Origin
+              S3OriginConfig:
+                OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${OriginAccessIdentity}'
               ## In case you want to restrict the bucket access use S3OriginConfig and remove CustomOriginConfig
               # S3OriginConfig:
               #   OriginAccessIdentity: origin-access-identity/cloudfront/E127EXAMPLE51Z
@@ -82,7 +95,7 @@ resources:
               - POST
               - PUT
             ## The origin id defined above
-            TargetOriginId: WebApp
+            TargetOriginId: myS3Origin
             ## Defining if and how the QueryString and Cookies are forwarded to the origin which in this case is S3
             ForwardedValues:
               QueryString: 'false'
