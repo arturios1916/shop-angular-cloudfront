@@ -1,0 +1,37 @@
+service: api-product-service
+frameworkVersion: 3
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: eu-central-1
+
+plugins:
+  - serverless-auto-swagger
+  - serverless-webpack
+
+custom:
+  autoswagger:
+    schemes: ['http', 'https']
+  webpack:
+    includeModules:
+      nodeModulesRelativeDir: '../../' #relative path to node_modules folder
+      packagePath: '../package.json' # relative path to custom package.json file.
+    packagerOptions:
+      lockFile: '../package-lock.json'
+
+functions:
+  getProductsList:
+    handler: "service/product/handler.get"
+    events:
+      - http:
+          path: products
+          method: get
+          cors: true
+  getProductsById:
+    handler: "service/product/handler.getById"
+    events:
+      - http:
+          path: products/{id}
+          method: get
+          cors: true

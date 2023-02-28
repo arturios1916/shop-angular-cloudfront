@@ -9,6 +9,8 @@ provider:
 plugins:
   - serverless-single-page-app-plugin
   - serverless-finch
+  - serverless-plugin-typescript
+
 
 custom:
   client:
